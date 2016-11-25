@@ -73,7 +73,7 @@ netG:add(SpatialConvolution(ngf * 2, ngf * 4, 4, 4, 2, 2, 1, 1))
 netG:add(SpatialBatchNormalization(ngf * 4)):add(nn.LeakyReLU(0.2, true))
 -- state size: (ngf*4) x 8 x 8
 netG:add(SpatialConvolution(ngf * 4, ngf * 8, 4, 4, 2, 2, 1, 1))
-netG:add(SpatialBatchNormalization(ndf * 8)):add(nn.LeakyReLU(0.2, true))
+netG:add(SpatialBatchNormalization(ngf * 8)):add(nn.LeakyReLU(0.2, true))
 -- state size: (ngf*8) x 4 x 4
 
 -- netG:add(SpatialConvolution(ngf * 8, ngf * 16, 4, 4, 2, 2, 1, 1))
@@ -272,15 +272,18 @@ end
 local fGx = function(x)
    gradParametersG:zero()
    --[[ the three lines below were already executed in fDx, so save computation
-   
    local fake = netG:forward(noise)
    input:copy(fake) ]]--
+   
+   local fake = netG:forward(input_img)
+   local output = netD:forward(fake)
+   
+   
    label:fill(real_label) -- fake labels are real for generator cost
 
-   local output = netD.output -- netD:forward(input) was already executed in fDx, so save computation
    errG = criterion:forward(output, label)
    local df_do = criterion:backward(output, label)
-   local df_dg = netD:updateGradInput(input_img, df_do)
+   local df_dg = netD:updateGradInput(fake, df_do)
 
    netG:backward(input_img, df_dg)
    return errG, gradParametersG
