@@ -20,6 +20,8 @@ opt = {
    gpu = 1,                -- gpu = 0 is CPU mode. gpu=X is GPU mode on GPU X
    name = 'experiment1',
    noise = 'normal',       -- uniform / normal
+   optimizer = 'sgd', 
+   load_cp = 0,
 }
 
 
@@ -152,6 +154,18 @@ local criterion = nn.BCECriterion()
 print('netG:',netG)
 print('netA:',netA)
 print('netD:',netD)
+
+if opt.load_cp > 0 then
+    epoch = opt.load_cp
+    require 'cunn'
+    require 'cudnn'
+    netG = torch.load('checkpoints/' .. opt.name .. '_' .. epoch .. '_net_G.t7')
+    netD = torch.load('checkpoints/' .. opt.name .. '_' .. epoch .. '_net_D.t7')
+    netA = torch.load('checkpoints/' .. opt.name .. '_' .. epoch .. '_net_A.t7')
+end
+
+
+
 
 local epoch_tm = torch.Timer()
 local tm = torch.Timer()
@@ -303,8 +317,22 @@ end
 
 if opt.display then disp = require 'display' end
 
+
+if opt.optimizer == 'adam' 
+    then optimizer = optim.adam
+    else optimizer = optim.sgd
+end
+
+result = {}
+local disp_config = {
+  title = "error over time",
+  labels = {"samples", "errD", "errG", "errA"},
+  ylabel = "error",
+  win=opt.display_id*2,
+}
+
 -- train
-for epoch = 1, opt.niter do
+for epoch = opt.load_cp + 1, opt.load_cp + opt.niter do
    epoch_tm:reset()
    local counter = 0
    for i = 1, smn, opt.batchSize do
@@ -313,32 +341,36 @@ for epoch = 1, opt.niter do
       load_data()
     
       -- (0) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-      optim.adam(fDx, parametersD, optimStateD)
+      optimizer(fDx, parametersD, optimStateD)
     
       -- (1) Update A network: maximize log(D(x)) + log(1 - D(G(z)))
-      optim.adam(fAx, parametersA, optimStateA)
+      optimizer(fAx, parametersA, optimStateA)
 
       -- (2) Update G network: maximize log(D(G(z)))
-      optim.adam(fGx, parametersG, optimStateG)
+      optimizer(fGx, parametersG, optimStateG)
 
       -- display
       counter = counter + 1
-      if counter % 10 == 0 and opt.display then
+      if counter % 20 == 0 and opt.display then
           local fake = netG:forward(input_img)
           local real = ass_label
-          disp.image(fake, {win=opt.display_id, title=opt.name})
-          disp.image(real, {win=opt.display_id * 3, title=opt.name})
+          disp.image(torch.cat(fake,real,3):cat(input_img,3), {win=opt.display_id, title=opt.name})
+          
       end
       
-        
       -- logging
-      if ((i-1) / opt.batchSize) % 1 == 0 then
+      if ((i-1) / opt.batchSize) % 5 == 0 then
          print(('Epoch: [%d][%8d / %8d]\t Time: %.3f  DataTime: %.3f  '
                    .. '  Err_G: %.4f  Err_D: %.4f Err_A: %.4f'):format(
                  epoch, ((i-1) / opt.batchSize),
                  math.floor(smn / opt.batchSize),
                  tm:time().real, data_tm:time().real,
                  errG and errG or -1, errD and errD or -1, errA and errA or -1))
+          
+          table.insert(result, {i + smn*(epoch-1), errD, errG, errA})
+          disp.plot(result, disp_config)
+          
+            
       end
    end
    paths.mkdir('checkpoints')
