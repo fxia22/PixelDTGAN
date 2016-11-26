@@ -6,7 +6,7 @@ require 'optim'
 opt = {
    dataset = 'folder',      
    batchSize = 128,
-   loadSize = 96,
+   loadSize = 64,
    fineSize = 64,
    ngf = 64,               -- #  of gen filters in first conv layer
    ndf = 64,               -- #  of discrim filters in first conv layer
@@ -196,7 +196,6 @@ local function load_data()
     ass_label:copy(batch[{{},1}])
     noass_label:copy(batch[{{},2}])
     data_tm:stop()
-
 end
 
 -- create closure to evaluate f(X) and df/dX of discriminator
@@ -205,6 +204,7 @@ local fDx = function(x)
    -- train with real   
    label:fill(real_label)
    local output = netD:forward(ass_label)
+   
    local errD_real1 = criterion:forward(output, label)
    local df_do = criterion:backward(output, label)
    netD:backward(ass_label, df_do)
@@ -212,7 +212,6 @@ local fDx = function(x)
    -- train with real (not associated)
    label:fill(real_label)
    local output = netD:forward(noass_label)
-    
     
    local errD_real2 = criterion:forward(output, label)
    local df_do = criterion:backward(output, label)
@@ -227,8 +226,8 @@ local fDx = function(x)
    local df_do = criterion:backward(output, label)
    netD:backward(fake, df_do)
 
-   errD = errD_real1 + errD_real2 + errD_fake 
-   return errD, gradParametersD
+   errD = (errD_real1 + errD_real2 + errD_fake)/3
+   return errD, gradParametersD:mul(1/3)
 end
 
 
@@ -252,6 +251,7 @@ local fAx = function(x)
    -- train with not associated
    label:fill(fake_label)
    local output = netA:forward(noassd)
+   
    local errA_real2 = criterion:forward(output, label)
    local df_do = criterion:backward(output, label)
    netA:backward(noassd, df_do)
@@ -259,12 +259,13 @@ local fAx = function(x)
    -- train with fake
    label:fill(fake_label)
    local output = netA:forward(faked)
+   
    local errA_fake = criterion:forward(output, label)
    local df_do = criterion:backward(output, label)
    netA:backward(faked, df_do)
 
-   errA = errA_real1 + errA_real2 + errA_fake 
-   return errA, gradParametersA
+   errA = (errA_real1 + errA_real2 + errA_fake)/3
+   return errA, gradParametersA:mul(1/3)
 end
 
 
@@ -278,17 +279,29 @@ local fGx = function(x)
    local fake = netG:forward(input_img)
    local output = netD:forward(fake)
    
-   
    label:fill(real_label) -- fake labels are real for generator cost
 
-   errG = criterion:forward(output, label)
+   errGD = criterion:forward(output, label)
    local df_do = criterion:backward(output, label)
    local df_dg = netD:updateGradInput(fake, df_do)
 
    netG:backward(input_img, df_dg)
-   return errG, gradParametersG
+   
+   local faked = torch.cat(input_img, fake, 2)
+   local output = netA:forward(faked)
+   label:fill(real_label) -- fake labels are real for generator cost
+   errGA = criterion:forward(output, label)    
+   local df_do = criterion:backward(output, label)
+   local df_dg2 = netA:updateGradInput(faked, df_do)
+   -- print(df_dg2:size())
+   local df_dg = df_dg2[{{},{4,6}}]
+   -- print(df_dg:size()) 
+   netG:backward(input_img, df_dg)
+   errG = (errGA + errGD)/2
+   return errG, gradParametersG:mul(1/2)
 end
 
+if opt.display then disp = require 'display' end
 
 -- train
 for epoch = 1, opt.niter do
@@ -310,13 +323,13 @@ for epoch = 1, opt.niter do
 
       -- display
       counter = counter + 1
-      --[[if counter % 10 == 0 and opt.display then
+      if counter % 10 == 0 and opt.display then
           local fake = netG:forward(input_img)
           local real = ass_label
           disp.image(fake, {win=opt.display_id, title=opt.name})
           disp.image(real, {win=opt.display_id * 3, title=opt.name})
       end
-      ]]--
+      
         
       -- logging
       if ((i-1) / opt.batchSize) % 1 == 0 then
