@@ -11,7 +11,7 @@ function loadImage(path)
    else
       input = image.scale(input, loadSize[2] * iW / iH, loadSize[2])
    end
-   return input
+   return input:mul(2):csub(1)
 end
 
 

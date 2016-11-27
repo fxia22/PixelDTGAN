@@ -8,8 +8,8 @@ opt = {
    batchSize = 128,
    loadSize = 64,
    fineSize = 64,
-   ngf = 64,               -- #  of gen filters in first conv layer
-   ndf = 64,               -- #  of discrim filters in first conv layer
+   ngf = 96,               -- #  of gen filters in first conv layer
+   ndf = 96,               -- #  of discrim filters in first conv layer
    nThreads = 4,           -- #  of data loading threads to use
    niter = 25,             -- #  of iter at starting learning rate
    lr = 0.0002,            -- initial learning rate for adam
@@ -48,7 +48,6 @@ local function weights_init(m)
       if m.bias then m.bias:fill(0) end
    end
 end
-
 
 
 local nc = 3
@@ -298,7 +297,6 @@ local fGx = function(x)
    errGD = criterion:forward(output, label)
    local df_do = criterion:backward(output, label)
    local df_dg = netD:updateGradInput(fake, df_do)
-
    netG:backward(input_img, df_dg)
    
    local faked = torch.cat(input_img, fake, 2)
@@ -339,15 +337,19 @@ for epoch = opt.load_cp + 1, opt.load_cp + opt.niter do
       tm:reset()
     
       load_data()
-    
-      -- (0) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+        
+        
+      -- (0) Update D network
       optimizer(fDx, parametersD, optimStateD)
     
-      -- (1) Update A network: maximize log(D(x)) + log(1 - D(G(z)))
+      -- (1) Update A network
       optimizer(fAx, parametersA, optimStateA)
-
-      -- (2) Update G network: maximize log(D(G(z)))
+      
+      -- (2) Update G network
       optimizer(fGx, parametersG, optimStateG)
+    
+      
+
 
       -- display
       counter = counter + 1
@@ -355,11 +357,10 @@ for epoch = opt.load_cp + 1, opt.load_cp + opt.niter do
           local fake = netG:forward(input_img)
           local real = ass_label
           disp.image(torch.cat(fake,real,3):cat(input_img,3), {win=opt.display_id, title=opt.name})
-          
       end
       
       -- logging
-      if ((i-1) / opt.batchSize) % 5 == 0 then
+      if ((i-1) / opt.batchSize) % 10 == 0 then
          print(('Epoch: [%d][%8d / %8d]\t Time: %.3f  DataTime: %.3f  '
                    .. '  Err_G: %.4f  Err_D: %.4f Err_A: %.4f'):format(
                  epoch, ((i-1) / opt.batchSize),
