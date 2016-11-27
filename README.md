@@ -23,3 +23,14 @@ Example results on LOOKBOOK dataset(top), left is input, right is generated clot
 More results will be added soon.
 
 ![Results](https://github.com/fxia22/pldtgan/blob/master/gan.jpg)
+
+# Monitor the performance
+
+
+- Install display package with: `luarocks install https://raw.githubusercontent.com/szym/display/master/display-scm-0.rockspec`
+- Start the server with: `th -ldisplay.start`
+- Open this URL in your browser: `http://localhost:8000`
+
+Below shows the results after 7 epochs, each 3*1 block is generated cloth, true cloth, input image. Errors of G, D, and A network will be plotted.
+ 
+![epoch 7](https://github.com/fxia22/pldtgan/blob/master/epoch7.jpg)
